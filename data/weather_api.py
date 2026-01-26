@@ -1,13 +1,13 @@
 """
-Weather API clients for fetching historical weather data.
-Primary: Open-Meteo (free, no API key required)
-Fallback: Weatherbit.io (requires API key)
+Weather API client for fetching historical weather data using Open-Meteo.
+Free API, no key required, historical data from 1940 onwards.
+https://open-meteo.com/en/docs/historical-weather-api
 """
 
 import time
 import requests
 from datetime import datetime, date
-from typing import Optional, Tuple
+from typing import Optional
 from dataclasses import dataclass
 
 
@@ -19,14 +19,12 @@ class WeatherData:
     longitude: float
     avg_temperature: Optional[float]  # Celsius
     rainfall: Optional[float]  # mm
-    source: str
 
 
 class OpenMeteoClient:
     """
     Client for Open-Meteo Historical Weather API.
     Free, no API key required, data from 1940 onwards.
-    https://open-meteo.com/en/docs/historical-weather-api
     """
     
     BASE_URL = "https://archive-api.open-meteo.com/v1/archive"
@@ -85,8 +83,7 @@ class OpenMeteoClient:
                 latitude=lat,
                 longitude=lon,
                 avg_temperature=temps[0] if temps else None,
-                rainfall=precip[0] if precip else None,
-                source="open-meteo"
+                rainfall=precip[0] if precip else None
             )
             
         except requests.exceptions.RequestException as e:
@@ -136,8 +133,7 @@ class OpenMeteoClient:
                     latitude=lat,
                     longitude=lon,
                     avg_temperature=temps[i] if i < len(temps) else None,
-                    rainfall=precip[i] if i < len(precip) else None,
-                    source="open-meteo"
+                    rainfall=precip[i] if i < len(precip) else None
                 ))
             
             return results
@@ -145,120 +141,6 @@ class OpenMeteoClient:
         except requests.exceptions.RequestException as e:
             print(f"Open-Meteo batch API error: {e}")
             return []
-
-
-class WeatherbitClient:
-    """
-    Client for Weatherbit Historical Weather API (fallback).
-    Requires API key, limited free tier (50 calls/day).
-    https://www.weatherbit.io/api/historical-weather-daily
-    """
-    
-    BASE_URL = "https://api.weatherbit.io/v2.0/history/daily"
-    
-    def __init__(self, api_key: str, requests_per_second: float = 1.0):
-        """
-        Initialize the Weatherbit client.
-        
-        Args:
-            api_key: Weatherbit API key
-            requests_per_second: Rate limit (default 1 req/s for free tier)
-        """
-        self.api_key = api_key
-        self.min_interval = 1.0 / requests_per_second
-        self.last_request_time = 0
-    
-    def _rate_limit(self):
-        """Apply rate limiting between requests."""
-        elapsed = time.time() - self.last_request_time
-        if elapsed < self.min_interval:
-            time.sleep(self.min_interval - elapsed)
-        self.last_request_time = time.time()
-    
-    def get_weather(self, lat: float, lon: float, target_date: date) -> Optional[WeatherData]:
-        """
-        Fetch historical weather data for a specific date and location.
-        
-        Args:
-            lat: Latitude
-            lon: Longitude
-            target_date: The date to fetch weather for
-            
-        Returns:
-            WeatherData object or None if request fails
-        """
-        self._rate_limit()
-        
-        # Weatherbit requires start_date and end_date
-        params = {
-            "lat": lat,
-            "lon": lon,
-            "start_date": target_date.isoformat(),
-            "end_date": target_date.isoformat(),
-            "key": self.api_key
-        }
-        
-        try:
-            response = requests.get(self.BASE_URL, params=params, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get("data"):
-                day_data = data["data"][0]
-                return WeatherData(
-                    date=target_date,
-                    latitude=lat,
-                    longitude=lon,
-                    avg_temperature=day_data.get("temp"),
-                    rainfall=day_data.get("precip"),
-                    source="weatherbit"
-                )
-            return None
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Weatherbit API error for {target_date} at ({lat}, {lon}): {e}")
-            return None
-
-
-class WeatherService:
-    """
-    Unified weather service that tries Open-Meteo first, falls back to Weatherbit.
-    """
-    
-    def __init__(self, weatherbit_api_key: Optional[str] = None):
-        """
-        Initialize the weather service.
-        
-        Args:
-            weatherbit_api_key: Optional Weatherbit API key for fallback
-        """
-        self.open_meteo = OpenMeteoClient()
-        self.weatherbit = WeatherbitClient(weatherbit_api_key) if weatherbit_api_key else None
-    
-    def get_weather(self, lat: float, lon: float, target_date: date) -> Optional[WeatherData]:
-        """
-        Fetch weather data, trying Open-Meteo first then Weatherbit.
-        
-        Args:
-            lat: Latitude
-            lon: Longitude
-            target_date: The date to fetch weather for
-            
-        Returns:
-            WeatherData object or None if all sources fail
-        """
-        # Try Open-Meteo first (free, unlimited)
-        result = self.open_meteo.get_weather(lat, lon, target_date)
-        if result and (result.avg_temperature is not None or result.rainfall is not None):
-            return result
-        
-        # Fall back to Weatherbit if available
-        if self.weatherbit:
-            result = self.weatherbit.get_weather(lat, lon, target_date)
-            if result:
-                return result
-        
-        return None
     
     def get_weather_batch_for_location(self, lat: float, lon: float,
                                         dates: list[date]) -> dict[date, WeatherData]:
@@ -282,7 +164,7 @@ class WeatherService:
         max_date = sorted_dates[-1]
         
         # Fetch the entire range (more efficient than individual calls)
-        all_weather = self.open_meteo.get_weather_batch(lat, lon, min_date, max_date)
+        all_weather = self.get_weather_batch(lat, lon, min_date, max_date)
         
         # Create lookup dict
         weather_dict = {w.date: w for w in all_weather}
@@ -292,7 +174,7 @@ class WeatherService:
 
 
 if __name__ == "__main__":
-    # Test the API clients
+    # Test the API client
     client = OpenMeteoClient()
     
     # Test single date fetch

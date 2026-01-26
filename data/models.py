@@ -67,7 +67,7 @@ class WeatherCache(Base):
     avg_temperature = Column(Float, nullable=True)
     rainfall = Column(Float, nullable=True)
     fetched_at = Column(DateTime, default=datetime.utcnow)
-    api_source = Column(String(50), nullable=True)  # 'open-meteo' or 'weatherbit'
+    api_source = Column(String(50), nullable=True)  # 'open-meteo'
     
     __table_args__ = (
         UniqueConstraint('date', 'latitude', 'longitude', name='uix_weather_location_date'),

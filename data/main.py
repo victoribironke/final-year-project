@@ -7,7 +7,7 @@ dataset in a SQLite database.
 
 Target Schema:
 - Date: The date of the data record (Datetime)
-- Demand: Market sales volume [Not available in source] (Numerical)
+- Demand: Estimated from price (0-100 scale, higher price = higher demand) (Numerical)
 - Commodity_Name: The name of the crop (Categorical)
 - Market_Location: The market or region (Categorical)
 - Unit_Price: The average price of the commodity (Numerical)
@@ -24,9 +24,6 @@ Usage:
     
     # Export to CSV after processing
     python main.py --export-csv harmonized_data.csv
-    
-    # Use Weatherbit as fallback (optional)
-    python main.py --weatherbit-key YOUR_API_KEY
 """
 
 from pipeline import DataPipeline, main as run_pipeline
@@ -42,10 +39,11 @@ def quick_start():
     print("=" * 60)
     print("\nThis will:")
     print("  1. Read the WFP food prices CSV")
-    print("  2. Fetch historical weather data from Open-Meteo API")
-    print("  3. Store harmonized data in SQLite database")
+    print("  2. Fetch historical weather data from Open-Meteo API (free)")
+    print("  3. Estimate demand from price (normalized 0-100 per commodity)")
+    print("  4. Store harmonized data in SQLite database")
     print("\nNote: Weather fetching may take time on first run")
-    print("      (~4,100 API calls for unique location-date combos)")
+    print("      (~63 locations × date ranges = ~63 API calls)")
     print("=" * 60)
     
     # Create and run pipeline with default settings
