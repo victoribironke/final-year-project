@@ -4,15 +4,78 @@ Orchestrates CSV processing, weather fetching, and database population.
 """
 
 import os
-import sys
 from datetime import datetime, date
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
+from collections import defaultdict
 from tqdm import tqdm
 
 from models import DatabaseManager, FoodPriceRecord, WeatherCache
-from csv_processor import CSVProcessor, LocationDateKey
-from weather_api import WeatherService, WeatherData
+from csv_processor import CSVProcessor, RawPriceRecord
+from weather_api import OpenMeteoClient, WeatherData
 from holidays import HOLIDAY_CACHE, is_holiday
+
+
+class DemandEstimator:
+    """
+    Estimates demand based on price.
+    
+    Since price is directly proportional to demand (higher demand = higher price),
+    we normalize prices within each commodity to create a demand index.
+    
+    Formula: demand = (price - min_price) / (max_price - min_price) * 100
+    This gives a 0-100 scale where 100 = highest demand period.
+    """
+    
+    def __init__(self):
+        self.commodity_stats: Dict[str, Dict[str, float]] = {}
+    
+    def fit(self, records: List[RawPriceRecord]):
+        """
+        Calculate min/max prices per commodity from all records.
+        
+        Args:
+            records: List of raw price records
+        """
+        # Group prices by commodity
+        commodity_prices = defaultdict(list)
+        for r in records:
+            commodity_prices[r.commodity].append(r.price)
+        
+        # Calculate stats for each commodity
+        for commodity, prices in commodity_prices.items():
+            self.commodity_stats[commodity] = {
+                'min': min(prices),
+                'max': max(prices),
+                'mean': sum(prices) / len(prices)
+            }
+    
+    def estimate_demand(self, commodity: str, price: float) -> Optional[float]:
+        """
+        Estimate demand index (0-100) based on price.
+        
+        Args:
+            commodity: The commodity name
+            price: The current price
+            
+        Returns:
+            Demand index (0-100) or None if commodity unknown
+        """
+        if commodity not in self.commodity_stats:
+            return None
+        
+        stats = self.commodity_stats[commodity]
+        min_price = stats['min']
+        max_price = stats['max']
+        
+        # Avoid division by zero
+        if max_price == min_price:
+            return 50.0  # Neutral demand if no price variation
+        
+        # Normalize to 0-100 scale
+        demand = ((price - min_price) / (max_price - min_price)) * 100
+        
+        # Clamp to valid range (in case of outliers)
+        return max(0.0, min(100.0, demand))
 
 
 class DataPipeline:
@@ -22,19 +85,18 @@ class DataPipeline:
     
     def __init__(self, 
                  csv_path: str,
-                 db_path: str = "food_prices.db",
-                 weatherbit_api_key: Optional[str] = None):
+                 db_path: str = "food_prices.db"):
         """
         Initialize the data pipeline.
         
         Args:
             csv_path: Path to the WFP CSV file
             db_path: Path to the SQLite database
-            weatherbit_api_key: Optional Weatherbit API key for fallback
         """
         self.csv_processor = CSVProcessor(csv_path)
         self.db_manager = DatabaseManager(db_path)
-        self.weather_service = WeatherService(weatherbit_api_key)
+        self.weather_client = OpenMeteoClient()
+        self.demand_estimator = DemandEstimator()
         
         # Initialize database
         self.db_manager.create_tables()
@@ -56,7 +118,7 @@ class DataPipeline:
             longitude=round(weather_data.longitude, 2),
             avg_temperature=weather_data.avg_temperature,
             rainfall=weather_data.rainfall,
-            api_source=weather_data.source
+            api_source="open-meteo"
         )
         session.merge(cache_entry)
     
@@ -96,7 +158,7 @@ class DataPipeline:
                     continue
                 
                 # Fetch weather for uncached dates using batch API
-                weather_dict = self.weather_service.get_weather_batch_for_location(
+                weather_dict = self.weather_client.get_weather_batch_for_location(
                     lat, lon, uncached_dates
                 )
                 
@@ -138,6 +200,15 @@ class DataPipeline:
         """
         session = self.db_manager.get_session()
         
+        # Load all records first for demand estimation
+        print("Loading records for demand estimation...")
+        all_records = list(self.csv_processor.read_records())
+        
+        # Fit the demand estimator on all data
+        print("Fitting demand estimator...")
+        self.demand_estimator.fit(all_records)
+        print(f"  Computed stats for {len(self.demand_estimator.commodity_stats)} commodities")
+        
         # Build weather cache lookup
         weather_cache: Dict[Tuple[date, float, float], Tuple[float, float]] = {}
         for cache_entry in session.query(WeatherCache).all():
@@ -152,8 +223,7 @@ class DataPipeline:
         records_skipped = 0
         
         try:
-            for i, raw_record in enumerate(tqdm(self.csv_processor.read_records(),
-                                                 desc="Processing records")):
+            for i, raw_record in enumerate(tqdm(all_records, desc="Processing records")):
                 # Look up weather data
                 weather_key = (raw_record.date, 
                               round(raw_record.latitude, 2),
@@ -167,11 +237,16 @@ class DataPipeline:
                 # Check if holiday
                 holiday = is_holiday(raw_record.date, HOLIDAY_CACHE)
                 
+                # Estimate demand based on price
+                demand = self.demand_estimator.estimate_demand(
+                    raw_record.commodity, raw_record.price
+                )
+                
                 # Create harmonized record
                 record = FoodPriceRecord(
                     # Core schema fields
                     date=datetime.combine(raw_record.date, datetime.min.time()),
-                    demand=None,  # Not available in source data
+                    demand=demand,
                     commodity_name=raw_record.commodity,
                     market_location=market_location,
                     unit_price=raw_record.price,
@@ -248,7 +323,7 @@ class DataPipeline:
         # Step 2: Fetch weather data
         weather_fetched = 0
         if not skip_weather:
-            print("\n[Step 2] Fetching weather data...")
+            print("\n[Step 2] Fetching weather data from Open-Meteo...")
             print("(This may take a while for first run)")
             weather_fetched = self.fetch_and_cache_weather()
         else:
@@ -256,6 +331,7 @@ class DataPipeline:
         
         # Step 3: Populate database
         print("\n[Step 3] Populating database with harmonized records...")
+        print("(Demand is estimated from price: higher price = higher demand)")
         records_inserted = self.populate_database()
         
         # Summary
@@ -297,7 +373,7 @@ class DataPipeline:
                 for r in records:
                     writer.writerow([
                         r.date.strftime('%Y-%m-%d') if r.date else '',
-                        r.demand if r.demand is not None else '',
+                        round(r.demand, 2) if r.demand is not None else '',
                         r.commodity_name,
                         r.market_location,
                         r.unit_price,
@@ -337,11 +413,6 @@ def main():
         help="Path to SQLite database"
     )
     parser.add_argument(
-        "--weatherbit-key",
-        default=os.environ.get("WEATHERBIT_API_KEY"),
-        help="Weatherbit API key (optional fallback)"
-    )
-    parser.add_argument(
         "--skip-weather",
         action="store_true",
         help="Skip weather fetching (use existing cache)"
@@ -357,8 +428,7 @@ def main():
     # Run pipeline
     pipeline = DataPipeline(
         csv_path=args.csv,
-        db_path=args.db,
-        weatherbit_api_key=args.weatherbit_key
+        db_path=args.db
     )
     
     results = pipeline.run(skip_weather=args.skip_weather)
