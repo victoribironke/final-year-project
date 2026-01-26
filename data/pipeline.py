@@ -188,17 +188,26 @@ class DataPipeline:
         
         return total_fetched
     
-    def populate_database(self, batch_size: int = 1000) -> int:
+    def populate_database(self, batch_size: int = 1000, clear_existing: bool = True) -> int:
         """
         Process all CSV records and populate the database with harmonized data.
         
         Args:
             batch_size: Number of records to process before committing
+            clear_existing: If True, clear existing food price records before inserting
             
         Returns:
             Number of records inserted
         """
         session = self.db_manager.get_session()
+        
+        # Clear existing records if requested
+        if clear_existing:
+            existing_count = session.query(FoodPriceRecord).count()
+            if existing_count > 0:
+                print(f"Clearing {existing_count:,} existing records...")
+                session.query(FoodPriceRecord).delete()
+                session.commit()
         
         # Load all records first for demand estimation
         print("Loading records for demand estimation...")

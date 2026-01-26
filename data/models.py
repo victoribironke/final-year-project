@@ -4,7 +4,7 @@ Uses SQLAlchemy for ORM and SQLite for storage.
 """
 
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, Float, String, DateTime, Boolean, UniqueConstraint, Index
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -47,9 +47,9 @@ class FoodPriceRecord(Base):
     currency = Column(String(10), nullable=True)
     price_usd = Column(Float, nullable=True)
     
+    # Index for efficient querying (no unique constraint - source data has duplicates)
     __table_args__ = (
-        UniqueConstraint('date', 'commodity_name', 'market_location', 'price_type', 
-                         name='uix_price_record'),
+        Index('ix_price_lookup', 'date', 'commodity_name', 'market_location'),
     )
 
 
