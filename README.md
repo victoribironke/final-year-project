@@ -1,18 +1,18 @@
 ## How to run the data module
-```python
+```bash
 cd data
 ```
 
 ### Full pipeline (fetches weather - takes ~15-20 min first run)
-```python
+```bash
 python main.py
 ```
 
 ### Skip weather fetch (use cached data)
-```python
+```bash
 python main.py --skip-weather
 ```
 ### Export harmonized data to CSV
-```python
+```bash
 python main.py --export-csv harmonized_food_prices.csv
 ```
