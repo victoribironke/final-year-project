@@ -421,11 +421,12 @@
           </div>
           <div class="glass-card about-card">
             <div class="about-icon">🤖</div>
-            <h3>Five ML Models</h3>
+            <h3>Seven ML Models</h3>
             <p>
               Each commodity is trained with <strong>Random Forest</strong>,
               <strong>XGBoost</strong>, <strong>SVR</strong>,
-              <strong>LSTM</strong>, and <strong>GRU</strong>. The best
+              <strong>LSTM</strong>, <strong>GRU</strong>,
+              <strong>Prophet</strong>, and <strong>N-BEATS</strong>. The best
               performer (champion) is selected per commodity.
             </p>
           </div>
@@ -461,7 +462,7 @@
 
         <!-- Model explanations -->
         <div class="glass-card model-explainer">
-          <h2>The Five Models</h2>
+          <h2>The Seven Models</h2>
           <div class="model-tabs" id="model-tabs">
             <button class="model-tab active" data-model="rf">
               Random Forest
@@ -470,6 +471,8 @@
             <button class="model-tab" data-model="svr">SVR</button>
             <button class="model-tab" data-model="lstm">LSTM</button>
             <button class="model-tab" data-model="gru">GRU</button>
+            <button class="model-tab" data-model="prophet">Prophet</button>
+            <button class="model-tab" data-model="nbeats">N-BEATS</button>
           </div>
           <div class="model-content" id="model-content">
             <div class="model-pane active" data-model="rf">
@@ -480,8 +483,8 @@
               <p>
                 Builds hundreds of independent decision trees, each trained on a
                 random subset of the data. The final prediction is the
-                <em>average</em> of all trees. This "wisdom of the crowd"
-                approach makes it highly robust to noise and outliers.
+                <em>average</em> of all trees — a "wisdom of the crowd" approach
+                that is highly robust to noise and outliers.
               </p>
               <div class="model-pros">
                 <span class="pro">✓ Good with non-linear data</span>
@@ -494,10 +497,9 @@
                 XGBoost <span class="model-family">Ensemble (Boosting)</span>
               </h3>
               <p>
-                Builds trees <em>sequentially</em> — each new tree focuses on
-                correcting the errors of the previous ones using gradient
-                descent. This iterative refinement often yields the highest
-                accuracy on tabular data.
+                Builds trees <em>sequentially</em> — each new tree corrects the
+                errors of the previous ones via gradient descent. This iterative
+                refinement often yields the highest accuracy on tabular data.
               </p>
               <div class="model-pros">
                 <span class="pro">✓ Often most accurate on tabular data</span>
@@ -540,15 +542,50 @@
                 GRU <span class="model-family">Recurrent Neural Network</span>
               </h3>
               <p>
-                A simplified LSTM with only two gates (reset & update). By
+                A simplified LSTM with only two gates (reset &amp; update). By
                 merging the forget and input mechanisms, it trains
-                <em>faster</em> with fewer parameters while often matching LSTM
-                accuracy.
+                <em>faster</em>
+                with fewer parameters while often matching LSTM accuracy.
               </p>
               <div class="model-pros">
                 <span class="pro">✓ Fewer parameters = faster</span>
                 <span class="pro">✓ Often matches LSTM accuracy</span>
                 <span class="pro">✓ Better for smaller datasets</span>
+              </div>
+            </div>
+            <div class="model-pane" data-model="prophet">
+              <h3>
+                Prophet <span class="model-family">Statistical (Additive)</span>
+              </h3>
+              <p>
+                Developed by Meta, Prophet decomposes a time series into
+                <strong>trend</strong> (long-term direction) +
+                <strong>seasonality</strong> (repeating cycles) +
+                <strong>holidays</strong> (irregular events). It uses a
+                piecewise linear growth curve and Fourier series for
+                seasonality.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Handles missing data gracefully</span>
+                <span class="pro">✓ Built-in holiday support</span>
+                <span class="pro">✓ Highly interpretable components</span>
+              </div>
+            </div>
+            <div class="model-pane" data-model="nbeats">
+              <h3>
+                N-BEATS <span class="model-family">Deep Learning (MLP)</span>
+              </h3>
+              <p>
+                <strong>Neural Basis Expansion Analysis for Time Series</strong>
+                — uses stacks of fully-connected blocks. Each block outputs a
+                <em>backcast</em> (reconstructing the input) and a
+                <em>forecast</em> (predicting the future). The residual from
+                each block feeds the next; all forecasts are summed.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Purpose-built for time series</span>
+                <span class="pro">✓ No RNN needed — pure FC layers</span>
+                <span class="pro">✓ Often outperforms LSTM/GRU</span>
               </div>
             </div>
           </div>
