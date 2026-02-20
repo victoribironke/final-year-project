@@ -1,8 +1,10 @@
 """
 Flask backend for the Demand Forecasting Prediction UI.
 
-Trains models from the harmonized CSV on first boot (if no saved models exist),
-then serves a prediction API + a stunning frontend.
+Optimised for low-memory deployment:
+  - Models are loaded lazily (only when a prediction is requested)
+  - CSV is aggregated once at startup but kept small
+  - Works with or without pre-trained models from the notebook
 """
 import os
 import json
@@ -34,6 +36,14 @@ FEATURE_COLS = [
 TARGET_COL = 'Demand'
 MIN_SAMPLES = 36
 
+# ── Globals (lightweight — no models loaded at startup) ───
+commodity_list = []
+commodity_summaries = {}   # {commodity: {records, date_range, avg_demand, ...}}
+commodity_champions = {}   # {commodity: champion_model_name}
+_model_cache = {}          # Lazy cache: {commodity: loaded_model}
+_df_features = None        # Cached feature-engineered DataFrame (only if no models/ dir)
+
+
 # ── Feature engineering ───────────────────────────────────
 def create_features(group_df):
     df = group_df.copy()
@@ -52,21 +62,22 @@ def create_features(group_df):
     return df
 
 
-# ── Globals filled at startup ─────────────────────────────
-commodity_models = {}   # {commodity: {'model': ..., 'scaler_X': ..., 'scaler_y': ..., 'champion': ...}}
-commodity_list = []
-df_raw = None
-commodity_summaries = {}  # per‑commodity stats for the frontend
+def _safe_name(commodity):
+    return commodity.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '_')
 
 
-def _train_models_from_csv():
-    """Train a Random Forest for every commodity and cache results."""
-    global df_raw
-    print("[BOOT] Loading CSV …")
+# ── Boot: lightweight index only ──────────────────────────
+def boot():
+    """Build commodity index and summaries. No models loaded yet."""
+    global commodity_list, _df_features
+
+    has_saved_models = os.path.exists(METADATA_PATH)
+
+    # ── Load CSV and build summaries ──────────────────────
+    print("[BOOT] Loading CSV ...")
     df_raw = pd.read_csv(CSV_PATH)
     df_raw['Date'] = pd.to_datetime(df_raw['Date'])
-    
-    # Aggregate
+
     df_agg = df_raw.groupby(['Date', 'Commodity_Name']).agg({
         'Demand': 'mean',
         'Unit_Price': 'mean',
@@ -74,43 +85,12 @@ def _train_models_from_csv():
         'Rainfall': 'mean',
         'Is_Holiday': 'max',
     }).reset_index().sort_values(['Commodity_Name', 'Date']).reset_index(drop=True)
+
     df_agg['Avg_Temperature'] = df_agg.groupby('Commodity_Name')['Avg_Temperature'].transform(lambda x: x.ffill().bfill())
     df_agg['Rainfall'] = df_agg.groupby('Commodity_Name')['Rainfall'].transform(lambda x: x.ffill().bfill())
 
-    # Feature engineering
-    print("[BOOT] Engineering features …")
-    dfs = []
-    for commodity, grp in df_agg.groupby('Commodity_Name'):
-        dfs.append(create_features(grp))
-    df_features = pd.concat(dfs, ignore_index=True)
-    
-    valid_commodities = [
-        c for c, grp in df_features.groupby('Commodity_Name')
-        if grp.dropna(subset=FEATURE_COLS + [TARGET_COL]).shape[0] >= MIN_SAMPLES
-    ]
-    
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    
-    for commodity in valid_commodities:
-        crop = df_features[df_features['Commodity_Name'] == commodity].dropna(subset=FEATURE_COLS + [TARGET_COL]).sort_values('Date').reset_index(drop=True)
-        split = int(len(crop) * 0.8)
-        X_train = crop[FEATURE_COLS].values[:split]
-        y_train = crop[TARGET_COL].values[:split]
-        
-        # Random Forest (fast and reliable)
-        rf = RandomForestRegressor(n_estimators=200, max_depth=10, min_samples_split=5, random_state=42, n_jobs=-1)
-        rf.fit(X_train, y_train)
-        
-        safe = commodity.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '_')
-        joblib.dump(rf, os.path.join(MODEL_DIR, f"{safe}_model.pkl"))
-        
-        commodity_models[commodity] = {
-            'model': rf,
-            'champion': 'Random Forest',
-            'feature_cols': FEATURE_COLS,
-        }
-        
-        # Store summary stats for the frontend
+    # Build summaries for every commodity
+    for commodity, crop in df_agg.groupby('Commodity_Name'):
         commodity_summaries[commodity] = {
             'records': len(crop),
             'date_range': [crop['Date'].min().strftime('%Y-%m'), crop['Date'].max().strftime('%Y-%m')],
@@ -118,122 +98,126 @@ def _train_models_from_csv():
             'avg_temp': round(float(crop['Avg_Temperature'].mean()), 2) if not crop['Avg_Temperature'].isna().all() else None,
             'avg_rainfall': round(float(crop['Rainfall'].mean()), 2) if not crop['Rainfall'].isna().all() else None,
         }
-        
-    print(f"[BOOT] Trained {len(commodity_models)} commodity models")
-    return df_features
+
+    if has_saved_models:
+        # ── Use saved models: just read metadata ──────────
+        print("[BOOT] Found models/ directory, using saved models (lazy loading)")
+        with open(METADATA_PATH) as f:
+            meta = json.load(f)
+        for commodity, info in meta.get('commodity_stats', {}).items():
+            commodity_champions[commodity] = info.get('champion_model', 'Unknown')
+        commodity_list = sorted(commodity_champions.keys())
+    else:
+        # ── No saved models: prepare data for on-demand training ──
+        print("[BOOT] No models/ directory, will train on-demand")
+        print("[BOOT] Engineering features ...")
+        dfs = []
+        for commodity, grp in df_agg.groupby('Commodity_Name'):
+            dfs.append(create_features(grp))
+        _df_features = pd.concat(dfs, ignore_index=True)
+
+        valid = [
+            c for c, grp in _df_features.groupby('Commodity_Name')
+            if grp.dropna(subset=FEATURE_COLS + [TARGET_COL]).shape[0] >= MIN_SAMPLES
+        ]
+        for c in valid:
+            commodity_champions[c] = 'Random Forest'
+        commodity_list = sorted(valid)
+
+    # Free raw DataFrame
+    del df_raw
+    print(f"[BOOT] Ready: {len(commodity_list)} commodities indexed")
 
 
-def _load_saved_models():
-    """Load models saved by the notebook (if available)."""
-    global df_raw
-    if not os.path.exists(METADATA_PATH):
-        return False
-    
-    with open(METADATA_PATH) as f:
-        meta = json.load(f)
-    
-    for commodity, info in meta.get('commodity_stats', {}).items():
-        safe = commodity.replace(' ', '_').replace('(', '').replace(')', '').replace('/', '_')
-        model_path = os.path.join(MODEL_DIR, f"{safe}_model.pkl")
-        if os.path.exists(model_path):
-            commodity_models[commodity] = {
-                'model': joblib.load(model_path),
-                'champion': info.get('champion_model', 'Unknown'),
-                'feature_cols': meta.get('feature_cols', FEATURE_COLS),
-            }
-    
-    if commodity_models:
-        # Load CSV for summaries
-        df_raw = pd.read_csv(CSV_PATH)
-        df_raw['Date'] = pd.to_datetime(df_raw['Date'])
-        df_agg = df_raw.groupby(['Date', 'Commodity_Name']).agg({
-            'Demand': 'mean',
-            'Avg_Temperature': 'mean',
-            'Rainfall': 'mean',
-        }).reset_index()
-        
-        for commodity in commodity_models:
-            crop = df_agg[df_agg['Commodity_Name'] == commodity]
-            commodity_summaries[commodity] = {
-                'records': len(crop),
-                'date_range': [crop['Date'].min().strftime('%Y-%m'), crop['Date'].max().strftime('%Y-%m')],
-                'avg_demand': round(float(crop['Demand'].mean()), 2),
-                'avg_temp': round(float(crop['Avg_Temperature'].mean()), 2) if not crop['Avg_Temperature'].isna().all() else None,
-                'avg_rainfall': round(float(crop['Rainfall'].mean()), 2) if not crop['Rainfall'].isna().all() else None,
-            }
-        
-        print(f"[BOOT] Loaded {len(commodity_models)} saved models")
-        return True
-    return False
+# ── Lazy model loading ────────────────────────────────────
+def _get_model(commodity):
+    """Load or train a model for the commodity, caching the result."""
+    if commodity in _model_cache:
+        return _model_cache[commodity]
 
+    safe = _safe_name(commodity)
+    model_path = os.path.join(MODEL_DIR, f"{safe}_model.pkl")
 
-def boot():
-    """Initialize models on startup."""
-    global commodity_list
-    if not _load_saved_models():
-        _train_models_from_csv()
-    commodity_list = sorted(commodity_models.keys())
+    if os.path.exists(model_path):
+        # Load saved sklearn/xgboost model
+        model = joblib.load(model_path)
+        _model_cache[commodity] = model
+        return model
+
+    # No saved model — train a quick Random Forest
+    if _df_features is None:
+        return None
+
+    crop = _df_features[_df_features['Commodity_Name'] == commodity].dropna(
+        subset=FEATURE_COLS + [TARGET_COL]
+    ).sort_values('Date').reset_index(drop=True)
+
+    if len(crop) < MIN_SAMPLES:
+        return None
+
+    split = int(len(crop) * 0.8)
+    X_train = crop[FEATURE_COLS].values[:split]
+    y_train = crop[TARGET_COL].values[:split]
+
+    rf = RandomForestRegressor(n_estimators=200, max_depth=10,
+                               min_samples_split=5, random_state=42, n_jobs=-1)
+    rf.fit(X_train, y_train)
+
+    # Save for next time
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    joblib.dump(rf, model_path)
+
+    _model_cache[commodity] = rf
+    return rf
 
 
 # ── Prediction logic ──────────────────────────────────────
 def predict_demand(commodity, temperature, rainfall, month, year, is_holiday,
                    recent_demands=None):
-    """
-    Predict demand for a commodity given input features.
-    recent_demands: list of up to 12 recent demand values (most recent first)
-    """
-    if commodity not in commodity_models:
+    if commodity not in commodity_champions:
         return None, "Commodity not found"
-    
-    info = commodity_models[commodity]
-    model = info['model']
-    
-    # Build features
+
+    model = _get_model(commodity)
+    if model is None:
+        return None, "Could not load model"
+
+    # Build feature vector
     if recent_demands is None or len(recent_demands) == 0:
-        # Use the commodity's average demand as a baseline
         avg = commodity_summaries.get(commodity, {}).get('avg_demand', 50.0)
         recent_demands = [avg] * 12
     else:
-        # Pad to 12 if shorter
         while len(recent_demands) < 12:
             recent_demands.append(recent_demands[-1])
-    
-    # Lag features
+
     lag1  = recent_demands[0]
     lag3  = recent_demands[2] if len(recent_demands) > 2 else recent_demands[0]
     lag6  = recent_demands[5] if len(recent_demands) > 5 else recent_demands[0]
     lag12 = recent_demands[11] if len(recent_demands) > 11 else recent_demands[0]
-    
-    # Rolling means
+
     rm3  = np.mean(recent_demands[:3])
     rm6  = np.mean(recent_demands[:6])
     rm12 = np.mean(recent_demands[:12])
-    
-    # Cyclical month encoding
+
     month_sin = np.sin(2 * np.pi * month / 12)
     month_cos = np.cos(2 * np.pi * month / 12)
-    
-    # Season
     is_wet = 1 if 4 <= month <= 10 else 0
-    
+
     features = np.array([[
         lag1, lag3, lag6, lag12,
         rm3, rm6, rm12,
         temperature, rainfall, int(is_holiday),
         month_sin, month_cos, is_wet, year
     ]])
-    
-    # Handle SVR with scalers
+
+    # Handle SVR dict format
     if isinstance(model, dict) and 'model' in model:
         svr = model['model']
-        scaler_X = model['scaler_X']
-        scaler_y = model['scaler_y']
-        features_scaled = scaler_X.transform(features)
+        features_scaled = model['scaler_X'].transform(features)
         pred_scaled = svr.predict(features_scaled)
-        pred = scaler_y.inverse_transform(pred_scaled.reshape(-1, 1)).ravel()[0]
+        pred = model['scaler_y'].inverse_transform(pred_scaled.reshape(-1, 1)).ravel()[0]
     else:
         pred = float(model.predict(features)[0])
-    
+
     return round(pred, 2), None
 
 
@@ -245,10 +229,9 @@ def index():
 
 @app.route('/api/commodities')
 def api_commodities():
-    """Return list of commodities + summaries."""
     data = []
     for c in commodity_list:
-        item = {'name': c, 'champion': commodity_models[c]['champion']}
+        item = {'name': c, 'champion': commodity_champions.get(c, 'Random Forest')}
         item.update(commodity_summaries.get(c, {}))
         data.append(item)
     return jsonify(data)
@@ -256,7 +239,6 @@ def api_commodities():
 
 @app.route('/api/predict', methods=['POST'])
 def api_predict():
-    """Predict demand for a commodity."""
     body = request.json
     commodity = body.get('commodity')
     temperature = float(body.get('temperature', 28))
@@ -265,15 +247,15 @@ def api_predict():
     year = int(body.get('year', datetime.now().year))
     is_holiday = bool(body.get('is_holiday', False))
     recent_demands = body.get('recent_demands', None)
-    
+
     pred, err = predict_demand(commodity, temperature, rainfall, month, year, is_holiday, recent_demands)
     if err:
         return jsonify({'error': err}), 400
-    
+
     return jsonify({
         'commodity': commodity,
         'predicted_demand': pred,
-        'champion_model': commodity_models[commodity]['champion'],
+        'champion_model': commodity_champions.get(commodity, 'Random Forest'),
         'inputs': {
             'temperature': temperature,
             'rainfall': rainfall,
@@ -286,19 +268,20 @@ def api_predict():
 
 @app.route('/api/history/<commodity>')
 def api_history(commodity):
-    """Return demand history for a commodity (aggregated monthly)."""
-    if df_raw is None:
+    """Return demand history (reads CSV on-demand to save memory)."""
+    try:
+        df = pd.read_csv(CSV_PATH, usecols=['Date', 'Commodity_Name', 'Demand', 'Unit_Price', 'Avg_Temperature', 'Rainfall'])
+        df['Date'] = pd.to_datetime(df['Date'])
+    except Exception:
         return jsonify([])
-    
-    crop = df_raw[df_raw['Commodity_Name'] == commodity].copy()
+
+    crop = df[df['Commodity_Name'] == commodity].copy()
     crop['YearMonth'] = crop['Date'].dt.to_period('M').astype(str)
     monthly = crop.groupby('YearMonth').agg({
-        'Demand': 'mean',
-        'Unit_Price': 'mean',
-        'Avg_Temperature': 'mean',
-        'Rainfall': 'mean',
+        'Demand': 'mean', 'Unit_Price': 'mean',
+        'Avg_Temperature': 'mean', 'Rainfall': 'mean',
     }).reset_index()
-    
+
     result = []
     for _, row in monthly.iterrows():
         result.append({
@@ -308,7 +291,8 @@ def api_history(commodity):
             'temperature': round(float(row['Avg_Temperature']), 2) if not pd.isna(row['Avg_Temperature']) else None,
             'rainfall': round(float(row['Rainfall']), 2) if not pd.isna(row['Rainfall']) else None,
         })
-    
+
+    del df  # Free memory
     return jsonify(result)
 
 
@@ -317,6 +301,6 @@ if __name__ == '__main__':
     print(f"\n{'=' * 50}")
     print(f"  Demand Forecasting UI")
     print(f"  http://127.0.0.1:5000")
-    print(f"  {len(commodity_list)} commodities loaded")
+    print(f"  {len(commodity_list)} commodities ready")
     print(f"{'=' * 50}\n")
     app.run(debug=False, port=5000)
