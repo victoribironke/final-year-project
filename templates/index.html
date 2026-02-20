@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demand Forecasting | Predictive Intelligence</title>
+    <meta
+      name="description"
+      content="AI-powered demand forecasting for Nigerian food commodities using machine learning."
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body>
+    <!-- ─── ANIMATED BACKGROUND ─── -->
+    <div class="bg-grid"></div>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+    <div class="glow glow-3"></div>
+
+    <!-- ─── HEADER ─── -->
+    <header class="header">
+      <div class="header-inner">
+        <div class="logo">
+          <div class="logo-icon">
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </div>
+          <span class="logo-text">DemandCast</span>
+        </div>
+        <nav class="nav-links">
+          <a href="#predict" class="nav-link active" data-section="predict"
+            >Predict</a
+          >
+          <a href="#explore" class="nav-link" data-section="explore">Explore</a>
+          <a href="#about" class="nav-link" data-section="about">About</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- ─── MAIN CONTENT ─── -->
+    <main class="main">
+      <!-- ═══ PREDICT SECTION ═══ -->
+      <section id="predict" class="section active">
+        <div class="section-header">
+          <h1 class="hero-title">
+            <span class="gradient-text">Demand Forecasting</span>
+            <br />Intelligence Platform
+          </h1>
+          <p class="hero-subtitle">
+            Predict future food commodity demand in Nigeria using machine
+            learning models trained on historical price, weather, and market
+            data.
+          </p>
+        </div>
+
+        <div class="predict-layout">
+          <!-- INPUT CARD -->
+          <div class="glass-card predict-card">
+            <div class="card-header">
+              <div class="card-icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <h2 class="card-title">Prediction Input</h2>
+            </div>
+
+            <form id="predict-form" class="predict-form">
+              <!-- Commodity -->
+              <div class="form-group">
+                <label for="commodity" class="form-label">Commodity</label>
+                <div class="select-wrapper">
+                  <select id="commodity" class="form-select" required>
+                    <option value="">Loading commodities…</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Month & Year -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="month" class="form-label">Month</label>
+                  <div class="select-wrapper">
+                    <select id="month" class="form-select">
+                      <option value="1">January</option>
+                      <option value="2">February</option>
+                      <option value="3">March</option>
+                      <option value="4">April</option>
+                      <option value="5">May</option>
+                      <option value="6">June</option>
+                      <option value="7">July</option>
+                      <option value="8">August</option>
+                      <option value="9">September</option>
+                      <option value="10">October</option>
+                      <option value="11">November</option>
+                      <option value="12">December</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="year" class="form-label">Year</label>
+                  <input
+                    type="number"
+                    id="year"
+                    class="form-input"
+                    min="2020"
+                    max="2030"
+                    value="2026"
+                  />
+                </div>
+              </div>
+
+              <!-- Temperature & Rainfall -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="temperature" class="form-label">
+                    Avg Temperature <span class="unit">(°C)</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="temperature"
+                    class="form-input"
+                    step="0.1"
+                    value="28.0"
+                    min="15"
+                    max="45"
+                  />
+                  <div class="range-slider">
+                    <input
+                      type="range"
+                      id="temp-slider"
+                      min="15"
+                      max="45"
+                      step="0.5"
+                      value="28"
+                    />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="rainfall" class="form-label">
+                    Rainfall <span class="unit">(mm)</span>
+                  </label>
+                  <input
+                    type="number"
+                    id="rainfall"
+                    class="form-input"
+                    step="1"
+                    value="100"
+                    min="0"
+                    max="500"
+                  />
+                  <div class="range-slider">
+                    <input
+                      type="range"
+                      id="rain-slider"
+                      min="0"
+                      max="500"
+                      step="5"
+                      value="100"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Holiday -->
+              <div class="form-group">
+                <label class="toggle-label">
+                  <div class="toggle-text">
+                    <span class="form-label">Public Holiday</span>
+                    <span class="toggle-desc"
+                      >Is the forecast period a Nigerian public holiday?</span
+                    >
+                  </div>
+                  <div class="toggle-switch">
+                    <input type="checkbox" id="is-holiday" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                </label>
+              </div>
+
+              <button type="submit" class="predict-btn" id="predict-btn">
+                <span class="btn-text">Generate Prediction</span>
+                <span class="btn-loader">
+                  <svg class="spinner" viewBox="0 0 24 24">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-dasharray="32"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+                <svg
+                  class="btn-arrow"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
+            </form>
+          </div>
+
+          <!-- RESULT CARD -->
+          <div class="glass-card result-card" id="result-card">
+            <!-- Default state -->
+            <div class="result-placeholder" id="result-placeholder">
+              <div class="placeholder-icon">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                >
+                  <path
+                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                  />
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                  <line x1="12" y1="22.08" x2="12" y2="12" />
+                </svg>
+              </div>
+              <h3>Your Prediction</h3>
+              <p>
+                Select a commodity and configure the parameters to generate a
+                demand forecast.
+              </p>
+            </div>
+
+            <!-- Filled state -->
+            <div class="result-content hidden" id="result-content">
+              <div class="result-header-row">
+                <span class="result-badge" id="result-model-badge"
+                  >Random Forest</span
+                >
+                <span class="result-date" id="result-date"></span>
+              </div>
+
+              <div class="result-commodity" id="result-commodity">Rice</div>
+
+              <div class="result-demand-wrapper">
+                <div class="demand-number" id="result-demand">0.00</div>
+                <div class="demand-label">/100 Demand Index</div>
+              </div>
+
+              <div class="demand-gauge">
+                <div class="gauge-track">
+                  <div class="gauge-fill" id="gauge-fill"></div>
+                </div>
+                <div class="gauge-labels">
+                  <span>Low</span><span>Medium</span><span>High</span>
+                </div>
+              </div>
+
+              <div class="result-details">
+                <div class="detail-item">
+                  <div class="detail-icon temp-icon">🌡️</div>
+                  <div class="detail-info">
+                    <span class="detail-value" id="detail-temp">28°C</span>
+                    <span class="detail-key">Temperature</span>
+                  </div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-icon rain-icon">🌧️</div>
+                  <div class="detail-info">
+                    <span class="detail-value" id="detail-rain">100mm</span>
+                    <span class="detail-key">Rainfall</span>
+                  </div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-icon season-icon" id="detail-season-icon">
+                    ☀️
+                  </div>
+                  <div class="detail-info">
+                    <span class="detail-value" id="detail-season">Dry</span>
+                    <span class="detail-key">Season</span>
+                  </div>
+                </div>
+                <div class="detail-item">
+                  <div
+                    class="detail-icon holiday-icon"
+                    id="detail-holiday-icon"
+                  >
+                    📅
+                  </div>
+                  <div class="detail-info">
+                    <span class="detail-value" id="detail-holiday">No</span>
+                    <span class="detail-key">Holiday</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Commodity info strip -->
+        <div class="glass-card commodity-info hidden" id="commodity-info">
+          <div class="info-header">
+            <h3 id="info-commodity-name">—</h3>
+            <span class="info-badge" id="info-champion">—</span>
+          </div>
+          <div class="info-stats">
+            <div class="stat">
+              <span class="stat-value" id="info-records">—</span>
+              <span class="stat-label">Data Points</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="info-date-range">—</span>
+              <span class="stat-label">Date Range</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="info-avg-demand">—</span>
+              <span class="stat-label">Avg Demand</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" id="info-avg-temp">—</span>
+              <span class="stat-label">Avg Temp</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══ EXPLORE SECTION ═══ -->
+      <section id="explore" class="section">
+        <div class="section-header">
+          <h1 class="section-title">
+            Explore <span class="gradient-text">Commodities</span>
+          </h1>
+          <p class="section-subtitle">
+            Browse the 42 food commodities in the Nigerian market dataset.
+          </p>
+        </div>
+
+        <div class="explore-search">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            id="explore-search"
+            class="explore-search-input"
+            placeholder="Search commodities…"
+          />
+        </div>
+
+        <div class="commodity-grid" id="commodity-grid">
+          <!-- Filled dynamically -->
+        </div>
+      </section>
+
+      <!-- ═══ ABOUT SECTION ═══ -->
+      <section id="about" class="section">
+        <div class="section-header">
+          <h1 class="section-title">
+            How It <span class="gradient-text">Works</span>
+          </h1>
+          <p class="section-subtitle">
+            Understanding the machine learning pipeline behind the predictions.
+          </p>
+        </div>
+
+        <div class="about-grid">
+          <div class="glass-card about-card">
+            <div class="about-icon">📊</div>
+            <h3>Data Collection</h3>
+            <p>
+              We use World Food Programme (WFP) price data from 63 Nigerian
+              markets, enriched with Open-Meteo weather data and Nigerian public
+              holiday indicators, spanning 2002–2024.
+            </p>
+          </div>
+          <div class="glass-card about-card">
+            <div class="about-icon">⚙️</div>
+            <h3>Feature Engineering</h3>
+            <p>
+              Raw data is transformed into predictive features: lag values (1,
+              3, 6, 12 months), rolling averages, cyclical month encoding,
+              seasonal indicators, temperature, and rainfall.
+            </p>
+          </div>
+          <div class="glass-card about-card">
+            <div class="about-icon">🤖</div>
+            <h3>Five ML Models</h3>
+            <p>
+              Each commodity is trained with <strong>Random Forest</strong>,
+              <strong>XGBoost</strong>, <strong>SVR</strong>,
+              <strong>LSTM</strong>, and <strong>GRU</strong>. The best
+              performer (champion) is selected per commodity.
+            </p>
+          </div>
+          <div class="glass-card about-card">
+            <div class="about-icon">📈</div>
+            <h3>Four Evaluation Metrics</h3>
+            <p>
+              Models are evaluated with <strong>RMSE</strong> (penalises big
+              errors), <strong>MAE</strong> (average error),
+              <strong>R²</strong> (variance explained), and
+              <strong>MAPE</strong> (percentage error).
+            </p>
+          </div>
+          <div class="glass-card about-card">
+            <div class="about-icon">🏆</div>
+            <h3>Champion Selection</h3>
+            <p>
+              The model with the lowest RMSE for each commodity becomes the
+              champion — it's the one used for real-time predictions in this
+              interface.
+            </p>
+          </div>
+          <div class="glass-card about-card">
+            <div class="about-icon">🌍</div>
+            <h3>Impact</h3>
+            <p>
+              Accurate demand forecasting helps reduce food waste, optimise
+              supply chains, and support food security planning across Nigeria's
+              diverse agricultural markets.
+            </p>
+          </div>
+        </div>
+
+        <!-- Model explanations -->
+        <div class="glass-card model-explainer">
+          <h2>The Five Models</h2>
+          <div class="model-tabs" id="model-tabs">
+            <button class="model-tab active" data-model="rf">
+              Random Forest
+            </button>
+            <button class="model-tab" data-model="xgb">XGBoost</button>
+            <button class="model-tab" data-model="svr">SVR</button>
+            <button class="model-tab" data-model="lstm">LSTM</button>
+            <button class="model-tab" data-model="gru">GRU</button>
+          </div>
+          <div class="model-content" id="model-content">
+            <div class="model-pane active" data-model="rf">
+              <h3>
+                Random Forest
+                <span class="model-family">Ensemble (Bagging)</span>
+              </h3>
+              <p>
+                Builds hundreds of independent decision trees, each trained on a
+                random subset of the data. The final prediction is the
+                <em>average</em> of all trees. This "wisdom of the crowd"
+                approach makes it highly robust to noise and outliers.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Good with non-linear data</span>
+                <span class="pro">✓ Provides feature importance</span>
+                <span class="pro">✓ Resistant to overfitting</span>
+              </div>
+            </div>
+            <div class="model-pane" data-model="xgb">
+              <h3>
+                XGBoost <span class="model-family">Ensemble (Boosting)</span>
+              </h3>
+              <p>
+                Builds trees <em>sequentially</em> — each new tree focuses on
+                correcting the errors of the previous ones using gradient
+                descent. This iterative refinement often yields the highest
+                accuracy on tabular data.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Often most accurate on tabular data</span>
+                <span class="pro">✓ Built-in regularisation</span>
+                <span class="pro">✓ Handles missing values</span>
+              </div>
+            </div>
+            <div class="model-pane" data-model="svr">
+              <h3>SVR <span class="model-family">Kernel-Based</span></h3>
+              <p>
+                Fits a flexible curve (via the RBF kernel) that keeps
+                predictions within an ε-margin of true values. Points outside
+                the margin are penalised, encouraging a tight, generalisable
+                fit.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Captures non-linear patterns</span>
+                <span class="pro">✓ Effective in high dimensions</span>
+                <span class="pro">✓ Margin-based = robust</span>
+              </div>
+            </div>
+            <div class="model-pane" data-model="lstm">
+              <h3>
+                LSTM <span class="model-family">Recurrent Neural Network</span>
+              </h3>
+              <p>
+                Processes sequences step-by-step using memory cells with
+                <em>input, forget, and output gates</em>. These gates learn
+                which past information to keep or discard, capturing long-range
+                temporal dependencies.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Captures long-term patterns</span>
+                <span class="pro">✓ State-of-the-art for sequences</span>
+                <span class="pro">✓ Handles variable-length input</span>
+              </div>
+            </div>
+            <div class="model-pane" data-model="gru">
+              <h3>
+                GRU <span class="model-family">Recurrent Neural Network</span>
+              </h3>
+              <p>
+                A simplified LSTM with only two gates (reset & update). By
+                merging the forget and input mechanisms, it trains
+                <em>faster</em> with fewer parameters while often matching LSTM
+                accuracy.
+              </p>
+              <div class="model-pros">
+                <span class="pro">✓ Fewer parameters = faster</span>
+                <span class="pro">✓ Often matches LSTM accuracy</span>
+                <span class="pro">✓ Better for smaller datasets</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ─── FOOTER ─── -->
+    <footer class="footer">
+      <p>
+        Final Year Project — Predictive Demand Forecasting Using Machine
+        Learning to Reduce Food Waste
+      </p>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>
