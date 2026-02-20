@@ -187,7 +187,7 @@ def _get_model(commodity):
         _model_cache[commodity] = model
         return model
 
-    # 2) Try .keras (LSTM / GRU) — requires TensorFlow
+    # 2) Try .keras (LSTM / GRU / N-BEATS) — requires TensorFlow
     if os.path.exists(keras_path):
         try:
             from tensorflow.keras.models import load_model
