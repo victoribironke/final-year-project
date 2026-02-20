@@ -130,28 +130,25 @@ def boot():
 
 
 # ── Lazy model loading ────────────────────────────────────
-def _get_model(commodity):
-    """Load or train a model for the commodity, caching the result."""
-    if commodity in _model_cache:
-        return _model_cache[commodity]
+def _train_rf_from_csv(commodity):
+    """Train a quick Random Forest for a commodity from the CSV."""
+    print(f"  [TRAIN] Training fallback RF for {commodity} ...")
+    df_raw = pd.read_csv(CSV_PATH)
+    df_raw['Date'] = pd.to_datetime(df_raw['Date'])
 
-    safe = _safe_name(commodity)
-    model_path = os.path.join(MODEL_DIR, f"{safe}_model.pkl")
+    df_agg = df_raw.groupby(['Date', 'Commodity_Name']).agg({
+        'Demand': 'mean', 'Avg_Temperature': 'mean',
+        'Rainfall': 'mean', 'Is_Holiday': 'max',
+    }).reset_index().sort_values(['Commodity_Name', 'Date']).reset_index(drop=True)
 
-    if os.path.exists(model_path):
-        # Load saved sklearn/xgboost model
-        model = joblib.load(model_path)
-        _model_cache[commodity] = model
-        return model
+    df_agg['Avg_Temperature'] = df_agg.groupby('Commodity_Name')['Avg_Temperature'].transform(lambda x: x.ffill().bfill())
+    df_agg['Rainfall'] = df_agg.groupby('Commodity_Name')['Rainfall'].transform(lambda x: x.ffill().bfill())
 
-    # No saved model — train a quick Random Forest
-    if _df_features is None:
+    crop_raw = df_agg[df_agg['Commodity_Name'] == commodity].copy()
+    if crop_raw.empty:
         return None
 
-    crop = _df_features[_df_features['Commodity_Name'] == commodity].dropna(
-        subset=FEATURE_COLS + [TARGET_COL]
-    ).sort_values('Date').reset_index(drop=True)
-
+    crop = create_features(crop_raw).dropna(subset=FEATURE_COLS + [TARGET_COL]).sort_values('Date').reset_index(drop=True)
     if len(crop) < MIN_SAMPLES:
         return None
 
@@ -163,12 +160,73 @@ def _get_model(commodity):
                                min_samples_split=5, random_state=42, n_jobs=-1)
     rf.fit(X_train, y_train)
 
-    # Save for next time
+    # Save as .pkl so it loads instantly next time
+    safe = _safe_name(commodity)
     os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(rf, model_path)
+    joblib.dump(rf, os.path.join(MODEL_DIR, f"{safe}_model.pkl"))
 
-    _model_cache[commodity] = rf
+    # Update the champion label
+    commodity_champions[commodity] = 'Random Forest (fallback)'
+    print(f"  [TRAIN] Done — saved as {safe}_model.pkl")
+    del df_raw
     return rf
+
+
+def _get_model(commodity):
+    """Load or train a model for the commodity, caching the result."""
+    if commodity in _model_cache:
+        return _model_cache[commodity]
+
+    safe = _safe_name(commodity)
+    pkl_path = os.path.join(MODEL_DIR, f"{safe}_model.pkl")
+    keras_path = os.path.join(MODEL_DIR, f"{safe}_model.keras")
+
+    # 1) Try .pkl (sklearn / xgboost / SVR)
+    if os.path.exists(pkl_path):
+        model = joblib.load(pkl_path)
+        _model_cache[commodity] = model
+        return model
+
+    # 2) Try .keras (LSTM / GRU) — requires TensorFlow
+    if os.path.exists(keras_path):
+        try:
+            from tensorflow.keras.models import load_model
+            model = load_model(keras_path)
+            _model_cache[commodity] = model
+            return model
+        except ImportError:
+            print(f"  [WARN] {commodity}: .keras model found but TensorFlow not installed, training fallback RF ...")
+        except Exception as e:
+            print(f"  [WARN] {commodity}: failed to load .keras model ({e}), training fallback RF ...")
+
+    # 3) Fallback: train from _df_features if available
+    if _df_features is not None:
+        crop = _df_features[_df_features['Commodity_Name'] == commodity].dropna(
+            subset=FEATURE_COLS + [TARGET_COL]
+        ).sort_values('Date').reset_index(drop=True)
+
+        if len(crop) >= MIN_SAMPLES:
+            split = int(len(crop) * 0.8)
+            X_train = crop[FEATURE_COLS].values[:split]
+            y_train = crop[TARGET_COL].values[:split]
+
+            rf = RandomForestRegressor(n_estimators=200, max_depth=10,
+                                       min_samples_split=5, random_state=42, n_jobs=-1)
+            rf.fit(X_train, y_train)
+
+            os.makedirs(MODEL_DIR, exist_ok=True)
+            joblib.dump(rf, pkl_path)
+            commodity_champions[commodity] = 'Random Forest (fallback)'
+            _model_cache[commodity] = rf
+            return rf
+
+    # 4) Last resort: train from CSV directly
+    rf = _train_rf_from_csv(commodity)
+    if rf:
+        _model_cache[commodity] = rf
+        return rf
+
+    return None
 
 
 # ── Prediction logic ──────────────────────────────────────
