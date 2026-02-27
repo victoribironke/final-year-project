@@ -157,6 +157,11 @@ function setupSliders() {
   rainInput.addEventListener("input", () => {
     rainSlider.value = rainInput.value;
   });
+
+  const simSlider = document.getElementById("sim-actual-slider");
+  if (simSlider) {
+    simSlider.addEventListener("input", updateSimulator);
+  }
 }
 
 function setDefaultMonth() {
@@ -221,8 +226,8 @@ async function makePrediction() {
 function displayResult(data, inputs) {
   // Hide placeholder, show content
   document.getElementById("result-placeholder").classList.add("hidden");
-  const content = document.getElementById("result-content");
-  content.classList.remove("hidden");
+  document.getElementById("result-content").classList.remove("hidden");
+  document.getElementById("impact-card").classList.remove("hidden");
 
   // Model badge
   document.getElementById("result-model-badge").textContent =
@@ -291,11 +296,76 @@ function displayResult(data, inputs) {
     ? "🎉"
     : "📅";
 
+  // ── Simulator Init ──
+  const cInfo = commodityMap[data.commodity] || {};
+  const avgDemand =
+    cInfo.avg_demand != null ? cInfo.avg_demand : data.predicted_demand;
+  const forecastDemand = data.predicted_demand;
+
+  // Setup the slider
+  const simSlider = document.getElementById("sim-actual-slider");
+  // Give a sensible range around the forecast
+  const maxSim = Math.max(100, Math.ceil(forecastDemand * 2));
+  simSlider.max = maxSim;
+  simSlider.value = forecastDemand; // Default assumption: actual matches forecast exactly
+
+  window.currentSimState = {
+    avgDemand: avgDemand,
+    forecastDemand: forecastDemand,
+  };
+
+  updateSimulator();
+
   // Scroll result into view on mobile
   if (window.innerWidth < 768) {
     document
       .getElementById("result-card")
       .scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+// ── Simulator Logic ─────────────────────────────────────────
+function updateSimulator() {
+  if (!window.currentSimState) return;
+  const { avgDemand, forecastDemand } = window.currentSimState;
+
+  const simSlider = document.getElementById("sim-actual-slider");
+  const actualDemand = parseFloat(simSlider.value);
+
+  document.getElementById("sim-actual-val").textContent =
+    actualDemand.toFixed(2);
+  document.getElementById("sim-supply-base").textContent = avgDemand.toFixed(2);
+  document.getElementById("sim-supply-forecast").textContent =
+    forecastDemand.toFixed(2);
+
+  // Waste = max(0, Planned_Supply - Actual_Demand)
+  const wasteBase = Math.max(0, avgDemand - actualDemand);
+  const wasteForecast = Math.max(0, forecastDemand - actualDemand);
+
+  document.getElementById("sim-waste-base").textContent = wasteBase.toFixed(2);
+  document.getElementById("sim-waste-forecast").textContent =
+    wasteForecast.toFixed(2);
+
+  // Impact Calculation
+  let reduction = 0;
+  if (wasteBase > 0) {
+    reduction = ((wasteBase - wasteForecast) / wasteBase) * 100;
+  } else if (wasteBase === 0 && wasteForecast === 0) {
+    reduction = null; // No waste in either scenario
+  } else if (wasteBase === 0 && wasteForecast > 0) {
+    reduction = -100; // AI model generated waste when baseline didn't -> negative reduction
+  }
+
+  const pctEl = document.getElementById("sim-reduction-pct");
+  if (reduction === null) {
+    pctEl.textContent = "N/A";
+    pctEl.style.color = "var(--text-muted)";
+  } else {
+    pctEl.textContent = Math.round(reduction) + "%";
+    // Color coding
+    if (reduction > 0) pctEl.style.color = "var(--green)";
+    else if (reduction < 0) pctEl.style.color = "var(--pink)";
+    else pctEl.style.color = "var(--text)";
   }
 }
 
