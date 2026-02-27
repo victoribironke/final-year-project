@@ -326,6 +326,66 @@
           </div>
         </div>
 
+        <!-- Waste Reduction Simulator (Now its own card) -->
+        <div class="glass-card impact-card hidden" id="impact-card">
+          <div class="impact-header">
+            <h4>Impact Simulator</h4>
+            <p>Compare AI Forecast vs Historical Average Supply</p>
+          </div>
+
+          <div class="impact-controls">
+            <label for="sim-actual-slider" class="sim-label">
+              If Actual Demand turns out to be:
+              <span id="sim-actual-val" class="highlight-val">0.00</span>
+            </label>
+            <div class="range-slider">
+              <input
+                type="range"
+                id="sim-actual-slider"
+                min="0"
+                max="100"
+                step="0.5"
+                value="50"
+              />
+            </div>
+          </div>
+
+          <div class="impact-scenarios">
+            <div class="scenario baseline">
+              <h5>Traditional (Baseline)</h5>
+              <div class="scenario-stat">
+                <span class="stat-name">Planned Supply</span>
+                <span class="stat-val" id="sim-supply-base">0.0</span>
+              </div>
+              <div class="scenario-stat waste-stat">
+                <span class="stat-name">Food Waste</span>
+                <span class="stat-val waste-val" id="sim-waste-base">0.0</span>
+              </div>
+            </div>
+
+            <div class="scenario forecast">
+              <h5>AI Forecast</h5>
+              <div class="scenario-stat">
+                <span class="stat-name">Planned Supply</span>
+                <span class="stat-val" id="sim-supply-forecast">0.0</span>
+              </div>
+              <div class="scenario-stat waste-stat">
+                <span class="stat-name">Food Waste</span>
+                <span class="stat-val waste-val" id="sim-waste-forecast"
+                  >0.0</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="impact-result-box">
+            <div class="waste-reduction">
+              <span class="pct" id="sim-reduction-pct">0%</span>
+              <span class="lbl">Waste Reduction vs Baseline</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Commodity info strip -->
         <div class="glass-card commodity-info hidden" id="commodity-info">
           <div class="info-header">
