@@ -266,11 +266,11 @@ function displayResult(data, inputs) {
 
   // Update gradient colour based on demand level
   if (pct > 70) {
-    demandEl.style.background = "linear-gradient(135deg, #fb923c, #f472b6)";
+    demandEl.style.background = "linear-gradient(135deg, #c15f3c, #a34e30)";
   } else if (pct > 40) {
-    demandEl.style.background = "linear-gradient(135deg, #22d3ee, #8b5cf6)";
+    demandEl.style.background = "linear-gradient(135deg, #c17a3c, #c15f3c)";
   } else {
-    demandEl.style.background = "linear-gradient(135deg, #34d399, #22d3ee)";
+    demandEl.style.background = "linear-gradient(135deg, #3a8a5c, #4a8a8a)";
   }
   demandEl.style.webkitBackgroundClip = "text";
   demandEl.style.webkitTextFillColor = "transparent";
@@ -392,7 +392,7 @@ function shakeElement(el) {
   el.style.animation = "none";
   el.offsetHeight; // reflow
   el.style.animation = "shake 0.4s ease";
-  el.style.borderColor = "#ef4444";
+  el.style.borderColor = "#c15f3c";
   setTimeout(() => {
     el.style.borderColor = "";
   }, 1500);
