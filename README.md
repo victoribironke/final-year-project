@@ -16,3 +16,6 @@ python main.py --skip-weather
 ```bash
 python main.py --export-csv harmonized_food_prices.csv
 ```
+
+### Full Research Documentation
+[Google Docs](https://docs.google.com/document/d/1kclR0sXW6X9UQ1pFBR9JZwS7BQr2g1OT1AunKlmQ5xA/edit?usp=drivesdk)
